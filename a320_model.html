@@ -509,6 +509,54 @@
     charliePoster.rotation.y = Math.PI;
     aircraft.add(charliePoster);
 
+    // Stylised Charlie Kirk face-shaped cockpit/nose mask.
+    // This turns the cockpit area into a cartoon-like face rather than a normal aircraft nose.
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xf2c7a5, metalness: 0.05, roughness: 0.55 });
+    const hairMat = new THREE.MeshStandardMaterial({ color: 0x3a2416, metalness: 0.05, roughness: 0.65 });
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0x101010, metalness: 0.05, roughness: 0.4 });
+    const browMat = new THREE.MeshStandardMaterial({ color: 0x2b1a10, metalness: 0.05, roughness: 0.6 });
+    const mouthMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, metalness: 0.05, roughness: 0.5 });
+    const shirtMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.05, roughness: 0.45 });
+    const suitMat = new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.08, roughness: 0.5 });
+
+    const faceCockpit = new THREE.Group();
+    faceCockpit.position.set(0, 0.05, cabinHL + 2.25);
+
+    const face = add(new THREE.SphereGeometry(0.82, 48, 32), skinMat, 0, 0.03, 0, 0, 0, 0, faceCockpit);
+    face.scale.set(0.88, 1.08, 0.32);
+
+    const forehead = add(new THREE.SphereGeometry(0.52, 32, 18), skinMat, 0, 0.42, 0.02, 0, 0, 0, faceCockpit);
+    forehead.scale.set(1.1, 0.55, 0.24);
+
+    const chin = add(new THREE.SphereGeometry(0.38, 28, 16), skinMat, 0, -0.64, 0.03, 0, 0, 0, faceCockpit);
+    chin.scale.set(1.0, 0.42, 0.18);
+
+    const hairTop = add(new THREE.SphereGeometry(0.58, 32, 16), hairMat, 0, 0.67, 0.03, 0, 0, 0, faceCockpit);
+    hairTop.scale.set(1.15, 0.34, 0.18);
+
+    const hairSideL = add(new THREE.SphereGeometry(0.22, 24, 12), hairMat, -0.48, 0.38, 0.05, 0, 0, 0, faceCockpit);
+    hairSideL.scale.set(0.65, 1.35, 0.16);
+
+    const hairSideR = add(new THREE.SphereGeometry(0.22, 24, 12), hairMat, 0.48, 0.38, 0.05, 0, 0, 0, faceCockpit);
+    hairSideR.scale.set(0.65, 1.35, 0.16);
+
+    add(new THREE.SphereGeometry(0.075, 18, 12), eyeMat, -0.24, 0.15, 0.28, 0, 0, 0, faceCockpit);
+    add(new THREE.SphereGeometry(0.075, 18, 12), eyeMat, 0.24, 0.15, 0.28, 0, 0, 0, faceCockpit);
+
+    const browL = add(new THREE.BoxGeometry(0.26, 0.035, 0.035), browMat, -0.24, 0.31, 0.31, 0, 0, -0.18, faceCockpit);
+    const browR = add(new THREE.BoxGeometry(0.26, 0.035, 0.035), browMat, 0.24, 0.31, 0.31, 0, 0, 0.18, faceCockpit);
+
+    const nose = add(new THREE.ConeGeometry(0.09, 0.26, 24), skinMat, 0, -0.05, 0.35, Math.PI / 2, 0, 0, faceCockpit);
+    nose.scale.set(0.9, 0.8, 1.0);
+
+    const mouth = add(new THREE.BoxGeometry(0.34, 0.045, 0.035), mouthMat, 0, -0.36, 0.32, 0, 0, 0, faceCockpit);
+
+    const collar = add(new THREE.BoxGeometry(0.46, 0.18, 0.04), shirtMat, 0, -0.86, 0.24, 0, 0, 0, faceCockpit);
+    const suitL = add(new THREE.BoxGeometry(0.28, 0.36, 0.045), suitMat, -0.26, -0.92, 0.22, 0, 0, -0.25, faceCockpit);
+    const suitR = add(new THREE.BoxGeometry(0.28, 0.36, 0.045), suitMat, 0.26, -0.92, 0.22, 0, 0, 0.25, faceCockpit);
+
+    aircraft.add(faceCockpit);
+
     aircraft.rotation.x = 0.1;
     aircraft.rotation.y = 0.58;
 
