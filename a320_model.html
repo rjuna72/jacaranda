@@ -1,65 +1,577 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>A320 Model Viewer</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AeroTrace A320 — Landing Page</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --panel: rgba(15, 23, 42, 0.78);
+      --border: rgba(148, 163, 184, 0.22);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --blue: #38bdf8;
+      --green: #34d399;
+      --amber: #f59e0b;
+      --red: #fb7185;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 15%, rgba(56,189,248,0.16), transparent 32%),
+        radial-gradient(circle at 80% 25%, rgba(167,139,250,0.16), transparent 30%),
+        linear-gradient(135deg, #020617, #07111f 48%, #030712);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+    }
+
+    canvas { width: 100%; height: 100%; display: block; }
+    #scene-wrap { position: fixed; inset: 0; z-index: 1; }
+
+    .glass {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 24px 90px rgba(0,0,0,0.36);
+    }
+
+    #topbar {
+      position: fixed;
+      top: 18px;
+      left: 18px;
+      right: 18px;
+      z-index: 20;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+    }
+
+    #brand {
+      padding: 14px 18px;
+      border-radius: 22px;
+      pointer-events: none;
+    }
+
+    #brand h1 {
+      font-size: 24px;
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+      margin-bottom: 5px;
+    }
+
+    #brand p {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    #sbom-link {
+      border: 1px solid rgba(148,163,184,0.16);
+      background: linear-gradient(135deg, rgba(56,189,248,0.26), rgba(167,139,250,0.18));
+      color: white;
+      border-radius: 999px;
+      padding: 12px 16px;
+      font-size: 12px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .hotspot {
+      position: fixed;
+      z-index: 18;
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(255,255,255,0.32);
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(56,189,248,0.95), rgba(14,165,233,0.28));
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 0 0 10px rgba(56,189,248,0.1), 0 0 32px rgba(56,189,248,0.75);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+
+    .hotspot:hover, .hotspot.active {
+      transform: scale(1.12);
+      box-shadow: 0 0 0 13px rgba(56,189,248,0.13), 0 0 40px rgba(56,189,248,1);
+    }
+
+    .hotspot small {
+      position: absolute;
+      left: 50%;
+      top: 48px;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      font-size: 11px;
+      color: #dbeafe;
+      background: rgba(2,6,23,0.72);
+      border: 1px solid rgba(148,163,184,0.18);
+      border-radius: 999px;
+      padding: 5px 8px;
+    }
+
+    @keyframes pulse {
+      50% { box-shadow: 0 0 0 15px rgba(56,189,248,0.04), 0 0 28px rgba(56,189,248,0.55); }
+    }
+
+    #hotspot-cockpit { left: 54%; top: 39%; }
+    #hotspot-engine { left: 46%; top: 58%; }
+    #hotspot-wing { left: 34%; top: 53%; }
+
+    #system-panel {
+      position: fixed;
+      right: 18px;
+      top: 104px;
+      bottom: 18px;
+      width: 390px;
+      z-index: 19;
+      border-radius: 28px;
+      padding: 18px;
+      overflow: auto;
+    }
+
+    #system-panel h2 {
+      font-size: 22px;
+      letter-spacing: -0.04em;
+      margin-bottom: 6px;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .system-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .software-card {
+      background: rgba(2,6,23,0.46);
+      border: 1px solid rgba(148,163,184,0.16);
+      border-radius: 20px;
+      padding: 14px;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .software-card h3 {
+      font-size: 14px;
+      letter-spacing: -0.02em;
+    }
+
+    .pill {
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      white-space: nowrap;
+    }
+
+    .pill.red { background: rgba(251,113,133,0.17); color: #fecdd3; border: 1px solid rgba(251,113,133,0.36); }
+    .pill.green { background: rgba(52,211,153,0.15); color: #bbf7d0; border: 1px solid rgba(52,211,153,0.30); }
+    .pill.amber { background: rgba(245,158,11,0.15); color: #fde68a; border: 1px solid rgba(245,158,11,0.32); }
+
+    #hint {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      z-index: 18;
+      padding: 10px 16px;
+      border-radius: 999px;
+      color: rgba(226,232,240,0.78);
+      font-size: 12px;
+      pointer-events: none;
+    }
+
+    @media (max-width: 900px) {
+      #topbar { flex-direction: column; align-items: stretch; }
+      #system-panel { left: 18px; right: 18px; top: auto; bottom: 18px; width: auto; max-height: 46vh; }
+      #hint { display: none; }
+    }
+  </style>
 </head>
-<body style="margin:0;background:#020617;overflow:hidden;">
-  <canvas id="c"></canvas>
+<body>
+  <div id="scene-wrap"><canvas id="c"></canvas></div>
+
+  <div id="topbar">
+    <section id="brand" class="glass">
+      <h1>AeroTrace A320</h1>
+      <p>Click aircraft systems to inspect fake software stacks</p>
+    </section>
+    <a id="sbom-link" href="sbom.html">Open SBOM Page →</a>
+  </div>
+
+  <button id="hotspot-cockpit" class="hotspot active" data-system="cockpit">◉<small>Cockpit</small></button>
+  <button id="hotspot-engine" class="hotspot" data-system="engine">◉<small>Engine</small></button>
+  <button id="hotspot-wing" class="hotspot" data-system="wing">◉<small>Wing</small></button>
+
+  <aside id="system-panel" class="glass">
+    <h2 id="system-title">Cockpit avionics</h2>
+    <p id="system-desc" class="muted"></p>
+    <div id="system-software" class="system-list"></div>
+  </aside>
+
+  <div id="hint" class="glass">Drag to rotate · scroll to zoom · click the hotspots</div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script>
+    const SYSTEMS = {
+      cockpit: {
+        title: 'Cockpit avionics',
+        desc: 'Fake cockpit software stack for navigation, pilot interface, displays and flight planning.',
+        software: [
+          { name: 'Flight Management Computer', code: 'fmc-core v4.8.2', risk: 'High', detail: 'Route logic, lateral guidance and flight plan calculations. Dependencies: openssl, gpsd, navdb-parser.' },
+          { name: 'Primary Flight Display', code: 'pfd-renderer v3.6.0', risk: 'Medium', detail: 'Synthetic display layer for attitude, speed, altitude and navigation presentation.' },
+          { name: 'MCDU Interface', code: 'mcdu-ui v2.9.1', risk: 'Low', detail: 'Pilot input interface for flight plan and performance data entry.' }
+        ]
+      },
+      engine: {
+        title: 'Engine control',
+        desc: 'Fake engine-side digital controls and monitoring software connected to the under-wing turbofan nacelles.',
+        software: [
+          { name: 'Engine FADEC', code: 'fadec-control v7.2.1', risk: 'High', detail: 'Fuel scheduling, thrust command validation and engine protection logic. Dependencies: sensorbus-core, securelink-api.' },
+          { name: 'Engine Health Monitor', code: 'ehm-agent v1.8.4', risk: 'Medium', detail: 'Collects vibration, EGT, N1/N2 and fault trend data for maintenance review.' },
+          { name: 'Thrust Reverser Logic', code: 'trl-monitor v2.3.2', risk: 'Medium', detail: 'Monitors reverser state, lock position and deployment command consistency.' }
+        ]
+      },
+      wing: {
+        title: 'Wing control systems',
+        desc: 'Fake wing and flight-control software around slats, flaps, spoilers and wingtip monitoring.',
+        software: [
+          { name: 'Slat Flap Control Computer', code: 'sfcc-main v5.0.8', risk: 'High', detail: 'Controls high-lift devices during takeoff and landing. Dependencies: actuatorbus, rtos-kernel.' },
+          { name: 'Spoiler Elevator Computer', code: 'sec-link v4.1.0', risk: 'Medium', detail: 'Spoiler command blending, roll augmentation and speedbrake command validation.' },
+          { name: 'Wing Load Monitor', code: 'wlm-sensorhub v1.7.5', risk: 'Low', detail: 'Monitors strain sensor inputs and simulated wing loading state.' }
+        ]
+      }
+    };
+
+    function riskClass(risk) {
+      if (risk === 'High') return 'red';
+      if (risk === 'Medium') return 'amber';
+      return 'green';
+    }
+
+    function renderSystemPanel(key) {
+      const sys = SYSTEMS[key];
+      document.querySelectorAll('.hotspot').forEach(h => h.classList.toggle('active', h.dataset.system === key));
+      document.getElementById('system-title').textContent = sys.title;
+      document.getElementById('system-desc').textContent = sys.desc;
+      document.getElementById('system-software').innerHTML = sys.software.map(item => `
+        <div class="software-card">
+          <div class="card-head"><h3>${item.name}</h3><span class="pill ${riskClass(item.risk)}">${item.risk}</span></div>
+          <p class="muted"><strong>${item.code}</strong><br>${item.detail}</p>
+        </div>
+      `).join('');
+    }
+
+    document.querySelectorAll('.hotspot').forEach(btn => {
+      btn.addEventListener('click', () => renderSystemPanel(btn.dataset.system));
+    });
+    renderSystemPanel('cockpit');
+
     const canvas = document.getElementById('c');
-    const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+    renderer.outputEncoding = THREE.sRGBEncoding;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x030712);
+    scene.fog = new THREE.FogExp2(0x030712, 0.014);
 
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-    camera.position.set(0,3,12);
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 500);
+    camera.position.set(0, 4.3, 21);
 
-    const light = new THREE.DirectionalLight(0xffffff, 2);
-    light.position.set(5,10,7);
-    scene.add(light);
-    scene.add(new THREE.AmbientLight(0x6699ff, 0.6));
+    scene.add(new THREE.HemisphereLight(0xb8ceff, 0x111018, 0.58));
+
+    const sun = new THREE.DirectionalLight(0xfff0d6, 2.7);
+    sun.position.set(13, 18, 11);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    scene.add(sun);
+
+    const rim = new THREE.DirectionalLight(0x75a7ff, 1.2);
+    rim.position.set(-16, 6, -12);
+    scene.add(rim);
+
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(20, 120),
+      new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.12, roughness: 0.72, transparent: true, opacity: 0.28 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -1.62;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    function makeStars() {
+      const count = 1500;
+      const pos = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        const r = 70 + Math.random() * 125;
+        const a = Math.random() * Math.PI * 2;
+        const b = Math.acos(2 * Math.random() - 1);
+        pos[i * 3] = r * Math.sin(b) * Math.cos(a);
+        pos[i * 3 + 1] = r * Math.sin(b) * Math.sin(a);
+        pos[i * 3 + 2] = r * Math.cos(b);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 0.22, transparent: true, opacity: 0.78 })));
+    }
+    makeStars();
+
+    const mats = {
+      body: new THREE.MeshStandardMaterial({ color: 0xf7fbff, metalness: 0.44, roughness: 0.31 }),
+      belly: new THREE.MeshStandardMaterial({ color: 0xdce6f2, metalness: 0.34, roughness: 0.44 }),
+      tail: new THREE.MeshStandardMaterial({ color: 0x063a7a, metalness: 0.28, roughness: 0.48 }),
+      stripe: new THREE.MeshStandardMaterial({ color: 0x0ea5e9, metalness: 0.25, roughness: 0.45, emissive: 0x082f49, emissiveIntensity: 0.25 }),
+      accent: new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.25, roughness: 0.45 }),
+      wing: new THREE.MeshStandardMaterial({ color: 0xe6edf7, metalness: 0.48, roughness: 0.28 }),
+      glass: new THREE.MeshStandardMaterial({ color: 0x3b82a0, metalness: 0.08, roughness: 0.035, transparent: true, opacity: 0.78 }),
+      dark: new THREE.MeshStandardMaterial({ color: 0x10131a, metalness: 0.55, roughness: 0.32 }),
+      chrome: new THREE.MeshStandardMaterial({ color: 0xd8e7f7, metalness: 0.92, roughness: 0.06 }),
+      rubber: new THREE.MeshStandardMaterial({ color: 0x08090b, metalness: 0.04, roughness: 0.9 })
+    };
 
     const aircraft = new THREE.Group();
     scene.add(aircraft);
 
-    const white = new THREE.MeshStandardMaterial({color:0xf7fbff, metalness:0.4, roughness:0.3});
-    const blue = new THREE.MeshStandardMaterial({color:0x0ea5e9});
-
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,8,64), white);
-    body.rotation.z = Math.PI/2;
-    aircraft.add(body);
-
-    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.7,32,32), white);
-    nose.scale.set(1,1,1.6);
-    nose.position.set(4.3,0,0);
-    aircraft.add(nose);
-
-    const wingL = new THREE.Mesh(new THREE.BoxGeometry(5,0.1,1.4), white);
-    wingL.position.set(-0.6,0,0);
-    wingL.rotation.z = 0.08;
-    aircraft.add(wingL);
-
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.1,2,1), blue);
-    tail.position.set(-4,1.1,0);
-    aircraft.add(tail);
-
-    function animate(){
-      requestAnimationFrame(animate);
-      aircraft.rotation.y += 0.004;
-      renderer.render(scene,camera);
+    function add(geo, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, parent = aircraft) {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      m.rotation.set(rx, ry, rz);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      parent.add(m);
+      return m;
     }
-    animate();
 
-    window.addEventListener('resize',()=>{
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      camera.aspect = window.innerWidth/window.innerHeight;
-      camera.updateProjectionMatrix();
+    function addEllipsoid(radius, scale, mat, x, y, z) {
+      const m = add(new THREE.SphereGeometry(radius, 48, 24), mat, x, y, z);
+      m.scale.set(scale.x, scale.y, scale.z);
+      return m;
+    }
+
+    const R = 0.72;
+    const cabinHL = 4.65;
+
+    add(new THREE.CylinderGeometry(R, R, cabinHL * 2, 64), mats.body, 0, 0, 0, Math.PI / 2);
+    add(new THREE.CylinderGeometry(R * 0.68, R, 1.55, 64), mats.body, 0, 0, cabinHL + 0.78, Math.PI / 2);
+    addEllipsoid(1, { x: R * 0.72, y: R * 0.72, z: 1.18 }, mats.body, 0, 0, cabinHL + 1.75);
+    add(new THREE.SphereGeometry(0.17, 24, 14), mats.dark, 0, -0.01, cabinHL + 2.84);
+    add(new THREE.CylinderGeometry(R * 0.42, R, 2.05, 64), mats.body, 0, 0, -cabinHL - 1.03, -Math.PI / 2);
+    add(new THREE.CylinderGeometry(0.08, R * 0.42, 1.35, 48), mats.body, 0, 0, -cabinHL - 2.73, -Math.PI / 2);
+    add(new THREE.CylinderGeometry(0.075, 0.1, 0.22, 18), mats.dark, 0, 0.03, -cabinHL - 3.48, Math.PI / 2);
+    add(new THREE.CylinderGeometry(0.27, 0.27, 5.4, 32), mats.belly, 0, -0.66, -0.35, Math.PI / 2);
+    add(new THREE.CylinderGeometry(R + 0.008, R + 0.008, 8.2, 64, 1, true, 0, Math.PI * 0.54), mats.stripe, 0, 0.01, 0.25, Math.PI / 2, Math.PI * 0.23);
+
+    add(new THREE.BoxGeometry(0.28, 0.18, 0.045), mats.glass, -0.27, R * 0.55, cabinHL + 1.55, -0.25, 0.27, 0.08);
+    add(new THREE.BoxGeometry(0.28, 0.18, 0.045), mats.glass, 0.27, R * 0.55, cabinHL + 1.55, -0.25, -0.27, -0.08);
+    add(new THREE.BoxGeometry(0.25, 0.2, 0.045), mats.glass, -0.13, R * 0.59, cabinHL + 1.75, -0.28, 0.08);
+    add(new THREE.BoxGeometry(0.25, 0.2, 0.045), mats.glass, 0.13, R * 0.59, cabinHL + 1.75, -0.28, -0.08);
+
+    for (let side of [-1, 1]) {
+      for (let i = -8; i <= 8; i++) {
+        if (i === -4 || i === 3) continue;
+        add(new THREE.BoxGeometry(0.026, 0.145, 0.22), mats.glass, side * (R + 0.012), R * 0.42, i * 0.58 - 0.25, 0, 0, side * 0.08);
+      }
+      [2.65, -3.05].forEach(z => add(new THREE.BoxGeometry(0.024, 0.82, 0.43), mats.body, side * (R + 0.016), 0.02, z, 0, 0, side * 0.02));
+    }
+
+    function makeWing(side) {
+      const span = 7.35;
+      const root = 3.2;
+      const tip = 0.82;
+      const sweep = 0.43;
+      const dihedral = 0.065;
+
+      for (let s = 0; s < 16; s++) {
+        const t = (s + 0.5) / 16;
+        const y = t * span;
+        const chord = root + (tip - root) * t;
+        const thick = 0.13 * (1 - t * 0.66);
+        const z = -(y * Math.tan(sweep) - root * 0.34 + chord * 0.5);
+        add(new THREE.BoxGeometry(span / 16 + 0.02, thick, chord), mats.wing, side * y, -0.34 + y * Math.sin(dihedral), z, 0, -0.025 * t, side * dihedral);
+      }
+
+      [1.35, 3.05, 4.85].forEach(y => {
+        add(new THREE.BoxGeometry(0.18, 0.16, 0.76), mats.belly, side * y, -0.48 + y * Math.sin(dihedral), -(y * Math.tan(sweep) - root * 0.34 + 0.55));
+      });
+
+      const ty = span;
+      const tz = -(ty * Math.tan(sweep) - root * 0.34 + tip * 0.5);
+      const shark = new THREE.Group();
+      shark.position.set(side * ty, -0.28 + ty * Math.sin(dihedral), tz);
+      shark.rotation.z = side * 0.2;
+      add(new THREE.BoxGeometry(0.07, 1.22, 0.62), mats.accent, 0, 0.62, 0, 0, 0, 0, shark);
+      add(new THREE.BoxGeometry(0.1, 0.12, 0.66), mats.accent, 0, 0.05, 0, 0, 0, 0, shark);
+      aircraft.add(shark);
+    }
+    makeWing(-1);
+    makeWing(1);
+
+    [-1, 1].forEach(side => {
+      const span = 3.35;
+      const root = 1.35;
+      const sweep = 0.35;
+      for (let s = 0; s < 7; s++) {
+        const t = (s + 0.5) / 7;
+        const y = t * span;
+        const chord = root - 0.58 * t;
+        add(new THREE.BoxGeometry(span / 7 + 0.02, 0.055, chord), mats.body, side * y, 0.02, -cabinHL - 2.42 - y * Math.tan(sweep), 0, 0, side * 0.035);
+      }
     });
+
+    for (let s = 0; s < 10; s++) {
+      const t = (s + 0.5) / 10;
+      const h = t * 3.28;
+      const chord = 2.28 - 1.1 * t;
+      add(new THREE.BoxGeometry(0.065, 3.28 / 10 + 0.02, chord), mats.tail, 0, 0.22 + h, -cabinHL - 2.0 - h * 0.48);
+    }
+    add(new THREE.BoxGeometry(0.05, 2.08, 0.45), mats.accent, 0, 1.78, -cabinHL - 3.05);
+
+    function engine(side) {
+      const g = new THREE.Group();
+      g.position.set(side * 2.48, -0.70, 1.03);
+      add(new THREE.CylinderGeometry(0.43, 0.36, 2.22, 48), mats.chrome, 0, 0, 0, Math.PI / 2, 0, 0, g);
+      add(new THREE.CylinderGeometry(0.35, 0.40, 0.52, 48), mats.dark, 0, 0, 1.08, Math.PI / 2, 0, 0, g);
+      add(new THREE.TorusGeometry(0.41, 0.055, 18, 56), mats.chrome, 0, 0, 1.16, 0, 0, 0, g);
+      add(new THREE.CylinderGeometry(0.29, 0.29, 0.05, 40), mats.dark, 0, 0, 0.92, Math.PI / 2, 0, 0, g);
+      add(new THREE.CylinderGeometry(0, 0.14, 0.42, 28), mats.chrome, 0, 0, 0.76, Math.PI / 2, 0, 0, g);
+
+      for (let b = 0; b < 22; b++) {
+        const a = b / 22 * Math.PI * 2;
+        const blade = add(new THREE.BoxGeometry(0.032, 0.19, 0.07), mats.chrome, Math.cos(a) * 0.17, Math.sin(a) * 0.17, 0.92, 0, 0, a, g);
+        blade.rotation.z = a + 0.36;
+      }
+
+      add(new THREE.CylinderGeometry(0.2, 0.29, 0.34, 36), mats.dark, 0, 0, -1.22, Math.PI / 2, 0, 0, g);
+      add(new THREE.BoxGeometry(0.22, 0.64, 1.38), mats.body, 0, 0.42, 0.08, 0, 0, 0, g);
+      aircraft.add(g);
+    }
+    engine(-1);
+    engine(1);
+
+    function gear(x, z, dual) {
+      const g = new THREE.Group();
+      g.position.set(x, -0.62, z);
+      add(new THREE.CylinderGeometry(0.045, 0.04, 0.78, 12), mats.chrome, 0, -0.18, 0, 0, 0, 0, g);
+      (dual ? [-0.18, 0.18] : [0]).forEach(wx => {
+        add(new THREE.TorusGeometry(0.16, 0.075, 16, 32), mats.rubber, wx, -0.58, 0, Math.PI / 2, 0, 0, g);
+        add(new THREE.CylinderGeometry(0.085, 0.085, 0.045, 22), mats.chrome, wx, -0.58, 0, 0, 0, Math.PI / 2, g);
+      });
+      aircraft.add(g);
+    }
+    gear(0, cabinHL + 0.92, false);
+    gear(-1.06, 0.25, true);
+    gear(1.06, 0.25, true);
+
+    add(new THREE.SphereGeometry(0.045, 10, 8), new THREE.MeshStandardMaterial({ color: 0xff2020, emissive: 0xff0000, emissiveIntensity: 1.8 }), -7.28, -0.16, -3.62);
+    add(new THREE.SphereGeometry(0.045, 10, 8), new THREE.MeshStandardMaterial({ color: 0x24ff48, emissive: 0x00ff00, emissiveIntensity: 1.8 }), 7.28, -0.16, -3.62);
+    add(new THREE.SphereGeometry(0.055, 12, 8), new THREE.MeshStandardMaterial({ color: 0xff3300, emissive: 0xff2200, emissiveIntensity: 1.3 }), 0, -0.82, -0.2);
+
+    aircraft.rotation.x = 0.1;
+    aircraft.rotation.y = 0.58;
+
+    const state = {
+      dragging: false,
+      right: false,
+      px: 0,
+      py: 0,
+      tx: 0.1,
+      ty: 0.58,
+      zoom: 21,
+      targetZoom: 21,
+      panX: 0,
+      panY: 0,
+      targetPanX: 0,
+      targetPanY: 0,
+      auto: true
+    };
+
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+    canvas.addEventListener('mousedown', e => {
+      state.dragging = true;
+      state.right = e.button === 2;
+      state.px = e.clientX;
+      state.py = e.clientY;
+      state.auto = false;
+    });
+
+    addEventListener('mousemove', e => {
+      if (!state.dragging) return;
+      const dx = e.clientX - state.px;
+      const dy = e.clientY - state.py;
+
+      if (state.right) {
+        state.targetPanX += dx * 0.012;
+        state.targetPanY -= dy * 0.012;
+      } else {
+        state.ty += dx * 0.01;
+        state.tx = Math.max(-1.05, Math.min(1.05, state.tx + dy * 0.01));
+      }
+
+      state.px = e.clientX;
+      state.py = e.clientY;
+    });
+
+    addEventListener('mouseup', () => { state.dragging = false; });
+
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      state.targetZoom = Math.max(8, Math.min(34, state.targetZoom + e.deltaY * 0.022));
+    }, { passive: false });
+
+    function resize() {
+      const w = innerWidth;
+      const h = innerHeight;
+      renderer.setSize(w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    addEventListener('resize', resize);
+    resize();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (state.auto && !state.dragging) state.ty += 0.0024;
+
+      aircraft.rotation.x += (state.tx - aircraft.rotation.x) * 0.12;
+      aircraft.rotation.y += (state.ty - aircraft.rotation.y) * 0.12;
+      state.zoom += (state.targetZoom - state.zoom) * 0.1;
+      state.panX += (state.targetPanX - state.panX) * 0.1;
+      state.panY += (state.targetPanY - state.panY) * 0.1;
+
+      camera.position.set(state.panX, 4.3 + state.panY, state.zoom);
+      camera.lookAt(state.panX, state.panY, 0);
+      renderer.render(scene, camera);
+    }
+
+    animate();
   </script>
 </body>
 </html>
