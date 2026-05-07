@@ -1,28 +1,267 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>AeroTrace Landing Page</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Airbus A320 — 3D Viewer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #060a14;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      color: #fff;
+      width: 100vw; height: 100vh;
+      user-select: none;
+    }
+    canvas { display: block; width: 100vw; height: 100vh; }
+
+    #ui-top {
+      position: fixed; top: 0; left: 0; right: 0;
+      padding: 22px 28px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      pointer-events: none; z-index: 10;
+    }
+    h1 { font-size: 20px; font-weight: 500; letter-spacing: 0.01em; color: rgba(255,255,255,0.92); }
+    .sub { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 4px; letter-spacing: 0.1em; text-transform: uppercase; }
+    #specs { display: flex; flex-direction: column; gap: 5px; text-align: right; }
+    .spec { font-size: 11px; color: rgba(255,255,255,0.3); letter-spacing: 0.06em; }
+    .spec b { color: rgba(255,255,255,0.6); font-weight: 400; }
+
+    #hint {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      font-size: 11px; color: rgba(255,255,255,0.3);
+      letter-spacing: 0.08em; text-transform: uppercase;
+      transition: opacity 1s; z-index: 10; pointer-events: none;
+    }
+
+    #loading {
+      position: fixed; inset: 0; background: #060a14;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 16px; z-index: 100;
+      transition: opacity 0.8s;
+    }
+    #loading p { font-size: 13px; color: rgba(255,255,255,0.4); letter-spacing: 0.1em; text-transform: uppercase; }
+    .bar { width: 220px; height: 1px; background: rgba(255,255,255,0.08); border-radius: 1px; overflow: hidden; }
+    .bar-fill {
+      height: 100%; background: rgba(255,255,255,0.5); width: 0%;
+      transition: width 0.3s ease;
+    }
+    #load-pct { font-size: 11px; color: rgba(255,255,255,0.25); letter-spacing: 0.1em; margin-top: 4px; }
+
+    #error {
+      position: fixed; inset: 0; background: #060a14;
+      display: none; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px; z-index: 200;
+    }
+    #error p { font-size: 14px; color: rgba(255,100,100,0.8); letter-spacing: 0.05em; }
+    #error small { font-size: 11px; color: rgba(255,255,255,0.25); }
+  </style>
 </head>
-<body style="margin:0;font-family:Arial;background:#020617;color:white;">
-  <div style="padding:30px;display:flex;justify-content:space-between;align-items:center;">
-    <div>
-      <h1>AeroTrace A320</h1>
-      <p>Interactive aircraft software exploration platform</p>
-    </div>
-    <a href="sbom_page.html" style="padding:12px 18px;background:#0ea5e9;border-radius:999px;color:white;text-decoration:none;">Open SBOM Page</a>
-  </div>
+<body>
 
-  <iframe src="a320_model.html" style="width:100%;height:80vh;border:none;"></iframe>
+<div id="loading">
+  <p>Loading A320</p>
+  <div class="bar"><div class="bar-fill" id="bar"></div></div>
+  <div id="load-pct">0%</div>
+</div>
 
-  <div style="position:fixed;right:20px;top:120px;width:320px;background:#111827;padding:20px;border-radius:20px;">
-    <h2>Cockpit Systems</h2>
-    <p>Flight Management Computer, Displays, Navigation Stack</p>
-    <h2>Engine Systems</h2>
-    <p>FADEC, Engine Monitoring, Sensor Bus</p>
-    <h2>Wing Systems</h2>
-    <p>Slat/Flap Controller, Spoiler Computer, Wing Load Monitor</p>
+<div id="error">
+  <p>Could not load a320.glb</p>
+  <small>Make sure a320.glb is in the same folder as index.html</small>
+</div>
+
+<canvas id="c"></canvas>
+
+<div id="ui-top">
+  <div>
+    <h1>Airbus A320-200</h1>
+    <div class="sub">CFM56-5B4 · Fly-by-wire</div>
   </div>
+  <div id="specs">
+    <div class="spec">Length <b>37.57 m</b></div>
+    <div class="spec">Wingspan <b>35.80 m</b></div>
+    <div class="spec">Cruise <b>Mach 0.78</b></div>
+    <div class="spec">Range <b>5,700 km</b></div>
+  </div>
+</div>
+
+<div id="hint">Drag to rotate · Scroll to zoom · Right-drag to pan</div>
+
+<!-- Three.js r128 + addons -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+// ── Renderer ──────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.outputEncoding = THREE.sRGBEncoding;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x060a14);
+scene.fog = new THREE.FogExp2(0x060a14, 0.012);
+
+const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.01, 1000);
+camera.position.set(0, 2, 8);
+
+// ── Orbit Controls ────────────────────────────────────────────────────────────
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.6;
+controls.minDistance = 1;
+controls.maxDistance = 60;
+controls.maxPolarAngle = Math.PI * 0.88;
+controls.mouseButtons = {
+  LEFT: THREE.MOUSE.ROTATE,
+  MIDDLE: THREE.MOUSE.DOLLY,
+  RIGHT: THREE.MOUSE.PAN
+};
+
+// Stop auto-rotate on interaction
+canvas.addEventListener('mousedown', () => { controls.autoRotate = false; });
+canvas.addEventListener('touchstart', () => { controls.autoRotate = false; }, { passive: true });
+document.getElementById('hint').addEventListener('transitionend', () => {});
+canvas.addEventListener('mousedown', () => {
+  document.getElementById('hint').style.opacity = '0';
+});
+
+// ── Lights ────────────────────────────────────────────────────────────────────
+// Hemisphere for ambient sky/ground
+const hemi = new THREE.HemisphereLight(0xc8d8ff, 0x182030, 0.6);
+scene.add(hemi);
+
+// Key light (sun)
+const key = new THREE.DirectionalLight(0xfff4e0, 2.2);
+key.position.set(10, 18, 10);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 0.5;
+key.shadow.camera.far = 80;
+key.shadow.camera.left = key.shadow.camera.bottom = -15;
+key.shadow.camera.right = key.shadow.camera.top = 15;
+key.shadow.bias = -0.001;
+scene.add(key);
+
+// Rim light (backlight)
+const rim = new THREE.DirectionalLight(0x4488ff, 0.8);
+rim.position.set(-10, 5, -8);
+scene.add(rim);
+
+// Fill light (under)
+const fill = new THREE.DirectionalLight(0x203050, 0.4);
+fill.position.set(0, -6, 2);
+scene.add(fill);
+
+// ── Stars ────────────────────────────────────────────────────────────────────
+(function() {
+  const n = 2000, p = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const r = 120 + Math.random() * 150;
+    const t = Math.random() * Math.PI * 2;
+    const f = Math.acos(2 * Math.random() - 1);
+    p[i*3]   = r * Math.sin(f) * Math.cos(t);
+    p[i*3+1] = r * Math.sin(f) * Math.sin(t);
+    p[i*3+2] = r * Math.cos(f);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  scene.add(new THREE.Points(geo, new THREE.PointsMaterial({
+    color: 0xffffff, size: 0.35, sizeAttenuation: true, transparent: true, opacity: 0.7
+  })));
+})();
+
+// ── Load GLB ─────────────────────────────────────────────────────────────────
+const loader = new THREE.GLTFLoader();
+const bar    = document.getElementById('bar');
+const pct    = document.getElementById('load-pct');
+
+loader.load(
+  './a320.glb',
+
+  // ── onLoad ──────────────────────────────────────────────────────────────────
+  function(gltf) {
+    const model = gltf.scene;
+
+    // Enable shadows on all meshes
+    model.traverse(node => {
+      if (node.isMesh) {
+        node.castShadow = true;
+        node.receiveShadow = true;
+        // Improve material quality if model uses standard materials
+        if (node.material) {
+          node.material.envMapIntensity = 0.8;
+        }
+      }
+    });
+
+    // Auto-centre and auto-scale the model regardless of its original size
+    const box    = new THREE.Box3().setFromObject(model);
+    const size   = box.getSize(new THREE.Vector3());
+    const centre = box.getCenter(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale  = 6 / maxDim;   // normalise longest axis to 6 units
+
+    model.scale.setScalar(scale);
+    model.position.sub(centre.multiplyScalar(scale));
+
+    scene.add(model);
+
+    // Set camera back to a good distance based on scaled size
+    const scaledSize = maxDim * scale;
+    camera.position.set(0, scaledSize * 0.3, scaledSize * 1.4);
+    controls.target.set(0, 0, 0);
+    controls.minDistance = scaledSize * 0.15;
+    controls.maxDistance = scaledSize * 8;
+    controls.update();
+
+    // Hide loader
+    const loading = document.getElementById('loading');
+    loading.style.opacity = '0';
+    setTimeout(() => loading.remove(), 800);
+  },
+
+  // ── onProgress ──────────────────────────────────────────────────────────────
+  function(xhr) {
+    if (xhr.lengthComputable) {
+      const p = Math.round((xhr.loaded / xhr.total) * 100);
+      bar.style.width = p + '%';
+      pct.textContent = p + '%';
+    }
+  },
+
+  // ── onError ─────────────────────────────────────────────────────────────────
+  function(err) {
+    console.error('GLB load error:', err);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error').style.display = 'flex';
+  }
+);
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+function resize() {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Render loop ───────────────────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
 </body>
 </html>
